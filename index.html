@@ -296,6 +296,19 @@
                         <label><input type="checkbox" class="day-filter" value="0" checked> Sun</label>
                     </div>
 
+                    <div id="ramadan-options"
+                        style="display:none; margin: 0.5rem 0; padding: 0.75rem; background-color: #fff7ed; border: 1px solid #fdba74; border-radius: 6px; width: 100%; box-sizing: border-box;">
+                        <div style="display:flex; align-items:center; justify-content:space-between;">
+                            <span style="color: #9a3412; font-size: 0.9em; font-weight: 600;">🌙 Ramadan Schedule
+                                Available</span>
+                            <label class="switch-toggle"
+                                style="display:flex; align-items:center; gap:0.5rem; cursor:pointer; color: #9a3412;">
+                                <input type="checkbox" id="ramadanToggle">
+                                <span style="font-size: 0.9em; font-weight: 600;">View Ramadan Schedule</span>
+                            </label>
+                        </div>
+                    </div>
+
                     <button class="btn" id="generateBtn">Show Schedule</button>
                     <small style="color: #64748b;">(Uncheck days to hide them from the print list)</small>
                 </div>
@@ -573,6 +586,7 @@
         });
 
         document.getElementById('generateBtn').addEventListener('click', generateCalendar);
+        document.getElementById('ramadanToggle').addEventListener('change', generateCalendar);
 
         function parseXML(xmlString) {
             const parser = new DOMParser();
@@ -658,13 +672,85 @@
 
             allYearEvents.sort((a, b) => new Date(a.year, a.month - 1, a.day) - new Date(b.year, b.month - 1, b.day));
 
-            let activeWeekPlan = null;
-            for (let evt of allYearEvents) {
-                const evtDate = new Date(evt.year, evt.month - 1, evt.day);
-                if (evtDate > queryDate) break; // Future event
+            // FIND ALL RELEVANT SCHEDULES FOR THIS MONTH
+            // We look for WeekPlans (!isDayPlan) that appear in this month.
+            const uniqueWeekPlans = new Map(); // GUID -> {event object, name}
 
-                if (!evt.isDayPlan) {
-                    activeWeekPlan = evt;
+            allYearEvents.forEach(evt => {
+                // Check if event is in the selected month/year
+                if (evt.year === year && evt.month === month && !evt.isDayPlan) {
+                    uniqueWeekPlans.set(evt.guid, { event: evt, name: evt.name });
+                }
+            });
+
+            // Classify them
+            const normalPlans = [];
+            const ramadanPlans = [];
+
+            uniqueWeekPlans.forEach(p => {
+                if (p.name.toLowerCase().includes('ramadan')) {
+                    ramadanPlans.push(p);
+                } else {
+                    normalPlans.push(p);
+                }
+            });
+
+            // UI Logic for Toggle
+            const ramadanOptions = document.getElementById('ramadan-options');
+            const ramadanToggle = document.getElementById('ramadanToggle');
+
+            if (ramadanPlans.length > 0 && normalPlans.length > 0) {
+                // Mixed month
+                ramadanOptions.style.display = 'block';
+            } else {
+                ramadanOptions.style.display = 'none';
+                if (ramadanPlans.length === 0) {
+                    // If no Ramadan plans, ensure toggle is off to avoid confusion later
+                    // But we don't strictly reset it to avoid annoying the user if they navigate away and back
+                    // ramadanToggle.checked = false; 
+                }
+            }
+
+            let activeWeekPlan = null;
+
+            // Decision Logic
+            if (ramadanToggle.checked && ramadanPlans.length > 0) {
+                // User wants Ramadan, and we have one
+                activeWeekPlan = ramadanPlans[0].event;
+                // Note: If there are multiple different Ramadan plans in one month, 
+                // taking the first one found in the month is a reasonable heuristic. 
+                // Usually there is only "Ramadan Week".
+            } else if (normalPlans.length > 0) {
+                // User wants Normal (default), or there are no Ramadan plans
+                // We try to pick the one active around the 15th, or just the first one.
+
+                // Let's refine the "Active 15th" logic to only pick from 'normalPlans'
+                // Filter allYearEvents to only those in normalPlans
+                const normalGUIDs = new Set(normalPlans.map(p => p.event.guid));
+
+                let bestCandidate = null;
+                for (let evt of allYearEvents) {
+                    const evtDate = new Date(evt.year, evt.month - 1, evt.day);
+                    if (evtDate > queryDate) break;
+                    if (!evt.isDayPlan && normalGUIDs.has(evt.guid)) {
+                        bestCandidate = evt;
+                    }
+                }
+                // If the 15th logic found something, use it. Otherwise use the first normal plan available.
+                activeWeekPlan = bestCandidate || normalPlans[0].event;
+
+            } else if (ramadanPlans.length > 0) {
+                // Only Ramadan plans exist in this month (e.g. full Ramadan month)
+                // Show it regardless of toggle
+                activeWeekPlan = ramadanPlans[0].event;
+            } else {
+                // Try the old fallback: looking backwards from 15th
+                for (let evt of allYearEvents) {
+                    const evtDate = new Date(evt.year, evt.month - 1, evt.day);
+                    if (evtDate > queryDate) break;
+                    if (!evt.isDayPlan) {
+                        activeWeekPlan = evt;
+                    }
                 }
             }
 
