@@ -240,12 +240,29 @@
                 width: 300px;
                 max-height: calc(100vh - 40px);
                 overflow-y: auto;
+                overflow-x: auto;
+                /* Enable horizontal scroll */
                 box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
                 z-index: 1000;
                 margin-top: 0;
                 background: white;
                 border: 1px solid var(--border-color);
             }
+        }
+
+        /* Ensure table inside sidebar doesn't shrink too much */
+        .prayer-times-container table {
+            min-width: 100%;
+            font-size: 0.8rem;
+            /* Slightly smaller text for compact view */
+        }
+
+        .prayer-times-container th,
+        .prayer-times-container td {
+            padding: 0.25rem 0.5rem;
+            /* Tighter padding */
+            white-space: nowrap;
+            /* Prevent wrapping */
         }
     </style>
 </head>
